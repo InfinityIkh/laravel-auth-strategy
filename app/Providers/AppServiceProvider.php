@@ -13,7 +13,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(
+            AuthRepositoryInterface::class,
+            AuthRepository::class
+        );
     }
 
     /**
@@ -22,9 +25,5 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         //
-        $this->app->bind(
-            AuthRepositoryInterface::class,
-            AuthRepository::class
-        );
     }
 }
