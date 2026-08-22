@@ -1,59 +1,306 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🔐 Laravel Auth Strategy
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel backend mini-project built to practice **SOLID principles** and **clean backend architecture** by implementing two authentication strategies — SPA session auth and Sanctum token auth — behind a single, swappable interface.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## About
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Most small Laravel projects handle authentication with a single `if/else` inside the controller: *"if this is an SPA request, do X, otherwise do Y."* That works until you need to add a third method, test each flow in isolation, or keep the controller readable.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+**Laravel Auth Strategy** solves this by treating each authentication method as an interchangeable **strategy**. The controller doesn't know — and doesn't need to know — *how* a user gets authenticated. It only knows *that* an `AuthStrategyInterface` implementation will handle it.
 
-## Learning Laravel
+The project supports two authentication approaches, both built on **Laravel Sanctum**:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+1. **SPA authentication** — session/cookie-based, for first-party frontends.
+2. **Token authentication** — Sanctum personal access tokens, for API/mobile clients.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## Features
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- 🔀 Two authentication strategies (SPA session-based, Sanctum token-based) behind a shared interface
+- 🧩 Strategy Pattern via `AuthStrategyResolver` to select the correct implementation at runtime
+- 🗂️ Repository Pattern to isolate persistence logic from authentication business logic
+- 💉 Dependency Injection through Laravel's Service Container (interfaces, not concrete classes)
+- 🪶 Thin controller — `AuthController` only orchestrates, it never contains auth logic
+- 🔑 Sanctum personal access token creation and revocation for token-based clients
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## Architecture
 
-## Contributing
+The dependency flow moves strictly from the controller down through abstractions, never the other way around:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```mermaid
+flowchart TD
+    Client[Client]
+    Controller[AuthController]
+    Resolver[AuthStrategyResolver]
+    Interface["AuthStrategyInterface"]
+    Spa[SpaAuthService]
+    Token[TokenAuthService]
+    RepoInterface["AuthRepositoryInterface"]
+    Repo[AuthRepository]
+    User[(User)]
 
-## Code of Conduct
+    Client --> Controller --> Resolver --> Interface
+    Interface --> Spa
+    Interface --> Token
+    Spa --> RepoInterface
+    Token --> RepoInterface
+    RepoInterface --> Repo --> User
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+The controller depends on the resolver, the resolver depends on the interface, and the concrete services depend on `AuthRepositoryInterface` rather than `AuthRepository`. Every arrow above points at an abstraction, not an implementation — which is what makes each piece replaceable without touching the others.
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Project Structure
 
-## License
+```
+app/
+├── Http/
+│   ├── Controllers/
+│   │   └── AuthController.php          # Thin HTTP entry point
+│   └── Requests/
+│       └── UserRequest.php             # Validates incoming credentials
+│
+├── Repositories/
+│   ├── AuthRepository.php              # Concrete persistence implementation
+│   └── AuthRepositoryInterface.php     # Persistence contract
+│
+├── Services/
+│   ├── AuthService.php                 # Shared authentication logic
+│   ├── AuthStrategyInterface.php       # Contract for auth strategies
+│   ├── AuthStrategyResolver.php        # Selects SPA vs Token strategy
+│   ├── SpaAuthService.php              # Session-based strategy
+│   └── TokenAuthService.php            # Sanctum token strategy
+│
+└── Providers/
+    └── AppServiceProvider.php          # Binds interfaces to implementations
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Class | Responsibility |
+|---|---|
+| `AuthController` | Receives the HTTP request, delegates to the resolver |
+| `AuthStrategyResolver` | Chooses `SpaAuthService` or `TokenAuthService` based on the route |
+| `AuthStrategyInterface` | Common contract both strategies implement |
+| `SpaAuthService` | Authenticates via Laravel session/cookie |
+| `TokenAuthService` | Authenticates and issues a Sanctum personal access token |
+| `AuthRepositoryInterface` | Persistence contract for auth-related operations |
+| `AuthRepository` | Finds users, creates/revokes Sanctum tokens |
+
+---
+
+## Authentication Strategies
+
+### SPA Authentication
+
+Used for first-party, cookie-capable clients (e.g. a Vue/React SPA served from the same domain).
+
+- The user submits credentials to `POST /api/auth/spa/login`.
+- `SpaAuthService` authenticates via Laravel's built-in session mechanism.
+- Laravel establishes an authenticated session; the browser stores the session cookie.
+- Subsequent requests are authenticated automatically via that cookie.
+- **No Sanctum personal access token is created for this flow.**
+
+```
+Client
+  ↓
+Login
+  ↓
+Laravel session
+  ↓
+Session cookie
+  ↓
+Authenticated requests
+```
+
+### Token Authentication
+
+Used for clients that can't rely on cookies — mobile apps, third-party API consumers, CLI tools.
+
+- The user submits credentials to `POST /api/auth/token/login`.
+- `TokenAuthService` verifies the credentials and calls Sanctum's `createToken()` via `AuthRepository`.
+- A personal access token is returned to the client.
+- The client authenticates subsequent requests with:
+
+```
+Authorization: Bearer <token>
+```
+
+```
+Client
+  ↓
+Login
+  ↓
+Sanctum personal access token
+  ↓
+Bearer token
+  ↓
+Authenticated API requests
+```
+
+Both flows are powered by Sanctum, but they solve different problems: sessions suit a trusted, same-origin frontend; tokens suit stateless, cross-client API access.
+
+---
+
+## Strategy Pattern
+
+Without this pattern, authentication logic tends to collapse into the controller:
+
+```php
+if ($type === 'spa') {
+    // SPA authentication logic
+} elseif ($type === 'token') {
+    // Token authentication logic
+}
+```
+
+This works for two strategies, but grows harder to test and extend with every new method added — and it couples HTTP handling to authentication logic.
+
+Instead, each authentication method is encapsulated in its own service, and both implement `AuthStrategyInterface`:
+
+```mermaid
+classDiagram
+    class AuthStrategyInterface {
+        <<interface>>
+        +authenticate(request)
+    }
+    class SpaAuthService
+    class TokenAuthService
+
+    AuthStrategyInterface <|.. SpaAuthService
+    AuthStrategyInterface <|.. TokenAuthService
+```
+
+`AuthStrategyResolver` picks the correct strategy based on the route, and `AuthController` simply delegates to whatever the resolver returns. The controller stays thin, and adding a new strategy never requires modifying the existing ones.
+
+---
+
+## SOLID Principles
+
+### Single Responsibility
+Each class does exactly one thing:
+- `AuthController` — handles the HTTP request/response cycle
+- `AuthStrategyResolver` — selects the appropriate strategy
+- `SpaAuthService` / `TokenAuthService` — implement one authentication method each
+- `AuthRepository` — handles persistence operations
+
+### Open/Closed
+The system is open for extension but closed for modification. A future `OAuthAuthService` could implement `AuthStrategyInterface` and plug into the resolver without changing `SpaAuthService`, `TokenAuthService`, or the controller.
+
+### Liskov Substitution
+`SpaAuthService` and `TokenAuthService` both implement `AuthStrategyInterface`, so anywhere the interface is expected, either service can be substituted without breaking the calling code.
+
+### Interface Segregation
+`AuthStrategyInterface` and `AuthRepositoryInterface` are each scoped to what their consumers actually need — authentication services aren't forced to depend on unrelated persistence methods, and vice versa.
+
+### Dependency Inversion
+High-level services depend on `AuthRepositoryInterface`, not the concrete `AuthRepository`. Laravel's Service Container resolves the actual implementation at runtime, keeping the services decoupled from persistence details.
+
+---
+
+## Authentication Flow
+
+**SPA login:**
+
+```mermaid
+sequenceDiagram
+    Client->>AuthController: POST /api/auth/spa/login
+    AuthController->>AuthStrategyResolver: resolve("spa")
+    AuthStrategyResolver->>SpaAuthService: authenticate()
+    SpaAuthService->>Laravel Session: establish session
+    Laravel Session-->>Client: authenticated (session cookie)
+```
+
+**Token login:**
+
+```mermaid
+sequenceDiagram
+    Client->>AuthController: POST /api/auth/token/login
+    AuthController->>AuthStrategyResolver: resolve("token")
+    AuthStrategyResolver->>TokenAuthService: authenticate()
+    TokenAuthService->>AuthRepository: createToken()
+    AuthRepository-->>Client: personal access token
+```
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Strategy | Description |
+|---|---|---|---|
+| `POST` | `/api/auth/spa/login` | SPA | Authenticates via Laravel session/cookie |
+| `POST` | `/api/auth/token/login` | Token | Authenticates and returns a Sanctum personal access token |
+
+> The authentication type is determined by the route itself, not by a field in the request body — `/spa/login` always triggers `SpaAuthService`, `/token/login` always triggers `TokenAuthService`.
+
+---
+
+## Installation
+
+```bash
+git clone https://github.com/InfinityIkh/laravel-auth-strategy.git
+cd laravel-auth-strategy
+
+composer install
+
+cp .env.example .env
+php artisan key:generate
+
+# Configure your database credentials in .env, then:
+php artisan migrate
+
+php artisan serve
+```
+
+---
+
+## Configuration
+
+Key environment variables relevant to this project:
+
+| Variable | Purpose |
+|---|---|
+| `APP_KEY` | Application encryption key, generated via `artisan key:generate` |
+| `DB_*` | Database connection settings used by migrations and the repository layer |
+| `SANCTUM_STATEFUL_DOMAINS` | Domains treated as "stateful" for SPA/session authentication |
+| `SESSION_DOMAIN` | Cookie domain used for SPA session authentication |
+
+---
+
+## Testing
+
+```bash
+php artisan test
+```
+
+---
+
+## Technologies
+
+- Laravel
+- Laravel Sanctum
+- PHP
+
+---
+
+## Future Improvements
+
+> These are architectural possibilities, not implemented features.
+
+- 🔗 Additional strategies (e.g. OAuth-based authentication) implementing `AuthStrategyInterface`
+- ✅ Expanded automated test coverage for both strategies
+- 🚦 Rate limiting on authentication endpoints
+- 📣 Authentication-related events (login, logout, token revocation)
+- 🛡️ Role/permission-based authorization on top of authentication
+
+---
+
+## Author
+
+**Created by 1f1n1ty_1kh**
+
+GitHub: [https://github.com/InfinityIkh](https://github.com/InfinityIkh)
